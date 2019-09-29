@@ -1,0 +1,15 @@
+---
+title: "CleanStrava"
+author: "Eric Wang"
+date: "1 août 2019"
+output: pdf_document
+---
+
+# Clean strava data
+```{r}
+source("getAllClean.R")
+path_data <- "data"
+fp <- list.files(paste0(path_data),full.names = TRUE)
+getAllrunclean(fp)
+```
+

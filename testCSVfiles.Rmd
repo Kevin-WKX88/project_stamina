@@ -1,0 +1,630 @@
+---
+title: "Test clustering on Csv files"
+author: "Kevin"
+date: "12 août 2019"
+output:
+  pdf_document: default
+  html_document: default
+  always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(trackeR)
+
+source("Functions/k-means.R")
+source("Functions/troncons.R")
+source("RL/MDP.R")
+```
+
+12/08/19
+# Une session
+## Import données
+```{r, include=TRUE}
+run1 <- read.csv('../Data/DataCSV/25060097/2530279693.csv')
+# run1 <- data.frame(run1)
+
+p <- dim(run1)[2]
+
+names(run1)
+```
+
+## Decoupage en troncons
+```{r, include=TRUE}
+# i <- 7
+# run <- df.runs[df.runs$session == i, ]
+runCleaned <- preProcessDataForSectionCSV(run1)
+troncons <- sliceSession(runCleaned)
+
+
+print(troncons)
+n <- dim(troncons)[1]
+p <- dim(troncons)[2]
+
+indexTroncons <- 1:n
+plot(indexTroncons, troncons$speed, main = paste("speed each section for session"), type = "p", pch = 20)
+```
+
+## k-means sur une course
+```{r, include=TRUE}
+set.seed(123)
+# sans distance
+indexTroncons <- 1:n
+tronconsScaled <- scale(troncons[,-1]) 
+kBest <- bestK(tronconsScaled, n-1)
+km1 <- kmeans(tronconsScaled, 3)
+plot(indexTroncons, troncons$speed, main = paste("speed each section - KMEANS"), type = "p", pch = 20, col = km1$cluster)
+```
+
+
+
+# Plus de courses
+```{r, include=TRUE}
+fp <- list.files("../Data/DataCSV/25060097", full.names = TRUE)
+
+sessions <- list()
+for(k in 1:length(fp)){
+  if(substr(fp[k],nchar(fp[k])-2, nchar(fp[k])) == "csv"){
+    dftemp <- read.csv(fp[k])
+    sessions[[k]] <- dftemp
+  }
+}
+
+print(sessions[[2]])
+
+nbSessions <- length(sessions)
+print(paste("nb of running sessions =", nbSessions))
+
+df <- sessions[[74]]
+
+
+runCleaned <- preProcessDataForSectionCSV(df)
+troncons <- sliceSession(runCleaned)
+
+```
+
+## kmeans sans distance
+```{r, include=TRUE}
+k.avg <- 0
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+for (i in 1:nbSessions) {
+  # print(i)
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  # Remove "distance" variable
+  troncons <- troncons[, -1]
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  # A changer
+  if (n == 2) {
+    nbSessionsClean <- nbSessionsClean - 1
+    next
+  }
+
+  kBest <- bestK(troncons.norm, n-1)
+  if (kBest == 0) { 
+    nbSessionsClean <- nbSessionsClean - 1
+    kBest <- 1
+  }
+  k.avg <- k.avg + kBest 
+  km <- kmeans(troncons.norm, kBest)
+  
+  indexTroncons <- 1:n
+  # plot(indexTroncons, data.frame(troncons.norm)$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+}
+
+print(paste("nb of running sessions =", nbSessionsClean))
+k.avg <- k.avg/nbSessionsClean
+print(paste("k moyen =", round(k.avg, 2)))
+```
+
+21/08/19
+## kmeans avec distance
+```{r, include=TRUE}
+k.avg <- 0
+nbSessionsClean <- nbSessions
+set.seed(1)
+
+for (i in 1:nbSessions) {
+  # print(i)
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  # Remove "distance" variable
+  # troncons <- troncons[, -1]
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  # A changer
+  if (n == 2) {
+    nbSessionsClean <- nbSessionsClean - 1
+    next
+  }
+
+  kBest <- bestK(troncons.norm, n-1)
+  if (kBest == 0) { 
+    nbSessionsClean <- nbSessionsClean - 1
+    kBest <- 1
+  }
+  k.avg <- k.avg + kBest 
+  km <- kmeans(troncons.norm, kBest)
+  
+  indexTroncons <- 1:n
+  # plot(indexTroncons, data.frame(troncons.norm)$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+}
+
+print(paste("nb of running sessions =", nbSessionsClean))
+k.avg <- k.avg/nbSessionsClean
+print(paste("k moyen =", round(k.avg, 2)))
+```
+
+
+
+## kmeans with k = 3 par session
+```{r, include=TRUE}
+k <- 4
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+cluster1 <- list()
+
+for (i in 1:nbSessions) {
+  print(i)
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  # Remove "distance" variable
+  troncons <- troncons[, -1]
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  # A changer
+  if (n <= k) {
+    nbSessionsClean <- nbSessionsClean - 1
+    next
+  }
+
+  km <- kmeans(troncons.norm, k)
+  
+  indexTroncons <- 1:n
+  # plot(indexTroncons, troncons$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+  
+  cluster1[[i]] <- km$cluster
+}
+
+print(paste("nb of running sessions =", nbSessionsClean))
+```
+
+20/08/19
+## kmeans sur toutes les sessions combinées
+```{r, include=TRUE}
+k <- 4
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+allSessions <- data.frame()
+for (i in 1:nbSessions) {
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  troncons <- troncons[, -1]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  allSessions <- rbind(allSessions, cbind(session = rep(i, dim(troncons)[1]), troncons.norm))
+}
+
+print(allSessions)
+  
+km <- kmeans(allSessions[,-1], k)
+print(km$centers)
+
+for (i in 1:nbSessions) {
+  # plot(allSessions[allSessions$session == i, ]$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster[allSessions$session == i], xlab = "troncon", ylab = "speed")
+}
+
+cluster2 <- list()
+for (i in 1:nbSessions) {
+  cluster2[[i]] <- km$cluster[allSessions$session == i]
+}
+```
+
+## Comparaison : kmeans sur tout VS kmeans par session
+```{r, include=TRUE}
+for (i in 1:nbSessions) {
+  par(mfrow = c(2, 1))
+  plot(allSessions[allSessions$session == i, ]$speed, main = paste("all session", i), type = "p", pch = 20, col = cluster1[[i]], xlab = "troncon", ylab = "speed")
+  plot(allSessions[allSessions$session == i, ]$speed, main = paste("kmeans par session", i), type = "p", pch = 20, col = cluster2[[i]], xlab = "troncon", ylab = "speed")
+  
+}
+```
+
+
+
+21/08/19
+# k-means sur une course avec/sans distance normalisé ou non
+```{r, include=TRUE}
+set.seed(123)
+# sans distance
+indexTroncons <- 1:n
+tronconsScaled <- scale(troncons[,-1]) 
+kBest <- bestK(tronconsScaled, n-1)
+km1 <- kmeans(tronconsScaled, 3)
+plot(indexTroncons, troncons$speed, main = paste("speed each section - KMEANS"), type = "p", pch = 20, col = km1$cluster)
+
+# avec distance normalisée
+indexTroncons <- 1:n
+tronconsScaled <- scale(troncons) 
+kBest <- bestK(tronconsScaled, n-1)
+km2 <- kmeans(tronconsScaled, 3)
+plot(indexTroncons, troncons$speed, main = paste("speed each section - KMEANS"), type = "p", pch = 20, col = km2$cluster)
+
+# avec distance non normalisée
+indexTroncons <- 1:n
+tronconsScaled <- cbind(troncons[, 1], scale(troncons[,-1]))
+kBest <- bestK(tronconsScaled, n-1)
+km3 <- kmeans(tronconsScaled, 3)
+plot(indexTroncons, troncons$speed, main = paste("speed each section - KMEANS"), type = "p", pch = 20, col = km3$cluster)
+
+print(km1$centers)
+print(km2$centers)
+print(km3$centers)
+
+```
+
+
+
+# Kmeans avec k = 3 par session
+```{r, include=TRUE}
+k <- 3
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+cluster1WithDistance <- list()
+
+for (i in 1:nbSessions) {
+  # print(i)
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  # Remove "distance" variable
+  # troncons <- troncons[, -1]
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  # A changer
+  if (n == 2) {
+    nbSessionsClean <- nbSessionsClean - 1
+    next
+  }
+
+  km <- kmeans(troncons.norm, k)
+  
+  indexTroncons <- 1:n
+  plot(indexTroncons, troncons$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+  
+  cluster1WithDistance[[i]] <- km$cluster
+}
+
+print(paste("nb of running sessions =", nbSessionsClean))
+```
+
+20/08/19
+## kmeans sur toutes les sessions combinées
+```{r, include=TRUE}
+k <- 3
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+allSessions <- data.frame()
+for (i in 1:nbSessions) {
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  # troncons <- troncons[, -1]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  allSessions <- rbind(allSessions, cbind(session = rep(i, dim(troncons)[1]), troncons.norm))
+}
+
+print(allSessions)
+  
+km <- kmeans(allSessions[,-1], k)
+print(km$centers)
+
+for (i in 1:nbSessions) {
+  plot(allSessions[allSessions$session == i, ]$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster[allSessions$session == i], xlab = "troncon", ylab = "speed")
+}
+
+cluster2WithDistance <- list()
+for (i in 1:nbSessions) {
+  cluster2WithDistance[[i]] <- km$cluster[allSessions$session == i]
+}
+```
+
+## Comparaison : kmeans sur tout VS kmeans par session
+```{r, include=TRUE}
+for (i in 1:nbSessions) {
+  par(mfrow = c(2, 1))
+  plot(allSessions[allSessions$session == i, ]$speed, main = paste("all session", i), type = "p", pch = 20, col = cluster1WithDistance[[i]], xlab = "troncon", ylab = "speed")
+  plot(allSessions[allSessions$session == i, ]$speed, main = paste("kmeans par session", i), type = "p", pch = 20, col = cluster2WithDistance[[i]], xlab = "troncon", ylab = "speed")
+}
+```
+
+
+# Comparaison : kmeans avec distance et sans + kmeans sur tout VS chaque session
+```{r, include=TRUE}
+for (i in 1:nbSessions) {
+  par(mfrow = c(2, 1))
+  plot(allSessions[allSessions$session == i, ]$distance, main = paste("kmeans par session avec distance", i), type = "p", pch = 20, col = cluster1WithDistance[[i]], xlab = "troncon", ylab = "distance")
+  plot(allSessions[allSessions$session == i, ]$distance, main = paste("kmeans par session sans distance", i), type = "p", pch = 20, col = cluster1[[i]], xlab = "troncon", ylab = "distance")
+}
+```
+
+
+
+22/08/19
+# Regroupement des courses de mêmes distances
+
+## Histogramme des distances des running sessions
+```{r, include=TRUE}
+sizesSessions <- vector(mode = "numeric", length = nbSessions)
+for (i in 1:nbSessions) {
+  sizesSessions[i] <- nrow(allSessions[allSessions$session == i, ])
+}
+
+hist(sizesSessions, breaks = 20, col = 6)
+print(sizesSessions)
+```
+
+## Les courses de 10km - kmeans par session
+```{r, include=TRUE}
+indices10km <- which(sizesSessions == 10)
+
+k <- 3
+nbSessions10km <- length(indices10km)
+set.seed(1)
+
+clusters10kmSessions_perSession <- list()
+
+for (i in 1:nbSessions10km) {
+  run <- sessions[[indices10km[i]]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+
+  km <- kmeans(troncons.norm, k)
+
+  indexTroncons <- 1:n
+  plot(indexTroncons, troncons$speed, main = paste("speed each section for session", indices10km[i]), type = "p", pch = 20, col = km$cluster)
+  
+  clusters10kmSessions_perSession[[indices10km[i]]] <- km$cluster
+}
+```
+
+
+## Les courses de 10km - kmeans avec les sessions combinées
+```{r, include=TRUE}
+k <- 3
+
+set.seed(1)
+
+all10kmSessions <- data.frame()
+for (i in 1:nbSessions10km) {
+  run <- sessions[[indices10km[i]]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  all10kmSessions <- rbind(all10kmSessions, cbind(session = rep(indices10km[i], dim(troncons)[1]), troncons.norm))
+}
+
+print(all10kmSessions)
+  
+km <- kmeans(all10kmSessions[,-1], k)
+print(km$centers)
+
+for (i in 1:nbSessions10km) {
+  plot(all10kmSessions[all10kmSessions$session == indices10km[i], ]$speed, main = paste("speed each section for session", indices10km[i]), type = "p", pch = 20, col = km$cluster[all10kmSessions$session == indices10km[i]], xlab = "troncon", ylab = "speed")
+}
+
+clusters10kmSessions_allSession <- list()
+for (i in 1:nbSessions10km) {
+  clusters10kmSessions_allSession[[indices10km[i]]] <- km$cluster[all10kmSessions$session == indices10km[i]]
+}
+```
+
+
+## Comparaison pour sessions de 10km : kmeans sur tout VS kmeans par session
+```{r, include=TRUE}
+for (i in 1:nbSessions10km) {
+  par(mfrow = c(2, 1))
+  plot(all10kmSessions[all10kmSessions$session == indices10km[i], ]$speed, main = paste("kmeans sur toutes sessions", indices10km[i]), type = "p", pch = 20, col = clusters10kmSessions_allSession[[indices10km[i]]], xlab = "troncon", ylab = "speed")
+  
+  plot(all10kmSessions[all10kmSessions$session == indices10km[i], ]$speed, main = paste("kmeans par session", indices10km[i]), type = "p", pch = 20, col = clusters10kmSessions_perSession[[indices10km[i]]], xlab = "troncon", ylab = "speed")
+}
+```
+
+
+## Comparaison pour sessions de 10km : kmeans avec toutes les sessions confondues VS groupe de 10km
+```{r, include=TRUE}
+for (i in 1:nbSessions10km) {
+  par(mfrow = c(2, 1))
+  plot(all10kmSessions[all10kmSessions$session == indices10km[i], ]$speed, main = paste("seance 10km - kmeans groupe 10km", indices10km[i]), type = "p", pch = 20, col = clusters10kmSessions_allSession[[indices10km[i]]], xlab = "troncon", ylab = "speed")
+  
+  plot(allSessions[allSessions$session == indices10km[i], ]$speed, main = paste("seance 10km - kmeans avec toutes les courses", indices10km[i]), type = "p", pch = 20, col = cluster2WithDistance[[indices10km[i]]], xlab = "troncon", ylab = "speed")
+}
+```
+
+
+
+
+27/08/19
+## Histogramme des distances des running sessions
+```{r, include=TRUE}
+sizesSessions <- vector(mode = "numeric", length = nbSessions)
+for (i in 1:nbSessions) {
+  sizesSessions[i] <- nrow(allSessions[allSessions$session == i, ])
+}
+
+hist(sizesSessions, breaks = 20, col = 6)
+print(sizesSessions)
+
+for (i in 1:25) {
+  print(paste("size =", i))
+  print(sum(sizesSessions == i))
+}
+```
+
+Les sessions de 5 km, 10 km, 6, 11 .
+
+## Les courses de 5km - kmeans par session
+```{r, include=TRUE}
+indices5km <- which(sizesSessions == 5)
+
+k <- 3
+nbSessions5km <- length(indices5km)
+set.seed(1)
+
+clusters5kmSessions_perSession <- list()
+
+for (i in 1:nbSessions5km) {
+  run <- sessions[[indices5km[i]]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+
+  km <- kmeans(troncons.norm, k)
+
+  indexTroncons <- 1:n
+  plot(indexTroncons, troncons$speed, main = paste("speed each section for session", indices5km[i]), type = "p", pch = 20, col = km$cluster)
+  
+  clusters5kmSessions_perSession[[indices5km[i]]] <- km$cluster
+}
+```
+
+
+## Les courses de 5km - kmeans avec les sessions combinées
+```{r, include=TRUE}
+k <- 3
+
+set.seed(1)
+
+all5kmSessions <- data.frame()
+for (i in 1:nbSessions5km) {
+  run <- sessions[[indices5km[i]]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  all5kmSessions <- rbind(all5kmSessions, cbind(session = rep(indices5km[i], dim(troncons)[1]), troncons.norm))
+}
+
+print(all5kmSessions)
+  
+km <- kmeans(all5kmSessions[,-1], k)
+print(km$centers)
+
+for (i in 1:nbSessions5km) {
+  plot(all5kmSessions[all5kmSessions$session == indices5km[i], ]$speed, main = paste("speed each section for session", indices5km[i]), type = "p", pch = 20, col = km$cluster[all5kmSessions$session == indices5km[i]], xlab = "troncon", ylab = "speed")
+}
+
+clusters5kmSessions_allSession <- list()
+for (i in 1:nbSessions5km) {
+  clusters5kmSessions_allSession[[indices5km[i]]] <- km$cluster[all5kmSessions$session == indices5km[i]]
+}
+```
+
+
+## Comparaison pour sessions de 5km : kmeans sur tout VS kmeans par session
+```{r, include=TRUE}
+for (i in 1:nbSessions5km) {
+  par(mfrow = c(2, 1))
+  plot(all5kmSessions[all5kmSessions$session == indices5km[i], ]$speed, main = paste("kmeans sur toutes sessions", indices5km[i]), type = "p", pch = 20, col = clusters5kmSessions_allSession[[indices5km[i]]], xlab = "troncon", ylab = "speed")
+  
+  plot(all5kmSessions[all5kmSessions$session == indices5km[i], ]$speed, main = paste("kmeans par session", indices5km[i]), type = "p", pch = 20, col = clusters5kmSessions_perSession[[indices5km[i]]], xlab = "troncon", ylab = "speed")
+}
+```
+
+
+## Comparaison pour sessions de 5km : kmeans avec toutes les sessions confondues VS groupe de 5km
+```{r, include=TRUE}
+for (i in 1:nbSessions5km) {
+  par(mfrow = c(2, 1))
+  plot(all5kmSessions[all5kmSessions$session == indices5km[i], ]$speed, main = paste("seance 5km - kmeans groupe 5km", indices5km[i]), type = "p", pch = 20, col = clusters5kmSessions_allSession[[indices5km[i]]], xlab = "troncon", ylab = "speed")
+  
+  plot(allSessions[allSessions$session == indices5km[i], ]$speed, main = paste("seance 5km - kmeans avec toutes les courses", indices5km[i]), type = "p", pch = 20, col = cluster2WithDistance[[indices5km[i]]], xlab = "troncon", ylab = "speed")
+}
+```
+
+
+# Recherche des actions pour MDP sur groupe de 10km, 5km
+```{r, include=TRUE}
+histPace <- function(indicesSessions, sessions) {
+  pace <- c()
+  for(i in 1:length(indicesSessions)){
+    if(is.numeric(sessions[[indicesSessions[i]]]$pace)){
+      pace <- rbind(pace,sessions[[indicesSessions[i]]]$pace)
+    }
+  }
+  # length(as.vector(pace))
+  hist(pace, breaks=100, col=1, xlim = c(100, 500))
+}
+
+histPace(indices10km, sessions)
+histPace(indices5km, sessions)
+``` 
+
+
+
+
+

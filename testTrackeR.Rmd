@@ -1,0 +1,511 @@
+---
+title: "Test package trackeR"
+author: "dd"
+date: "26 juin 2019"
+output:
+  pdf_document: default
+  html_document: default
+  always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(trackeR)
+```
+
+# test fonctions basiques
+
+```{r, include=TRUE}
+#Set data of one run in a data frame
+run0 <- readTCX(file = '../Data/DataTCX/activity_3585598364.TCX', timezone = 'GMT')
+str(run0)
+## turn into trackeRdata object
+units0 <- generate_units()
+Run0 <- trackeRdata(run0, sport = 'running', units = units0)
+
+## turn into trackeRdata object
+run1<- readTCX(file = '../Data/DataTCX/activity_2025637452.tcx', timezone = 'GMT')
+#Set data of one run in a data frame
+Run1 <- trackeRdata(run1, sport = 'running', units = units0)
+# read_container(filepath, type = "tcx", timezone = "GMT") : does readTCX and trackeRdata
+
+RunAll <- read_directory('../Data/DataTCX/.', timezone = "GMT", sport = "running")
+
+#load intrackeRdata
+RunRecord <- read_container( '../Data/DataTCX/activity_3607400913.tcx', type = "tcx", timezone = "GMT", sport = 'running')
+
+#load in a dataframe
+runRecord <- readTCX( '../Data/DataTCX/activity_3607400913.tcx', type = "tcx", timezone = "GMT", sport = 'running')
+
+# plot the path on the map
+plotRoute(RunRecord)
+
+InfoSessions <- summary(RunAll, session = 1:6)
+print(InfoSessions)
+
+plot(RunAll, group = c("total", "moving"),what = c("avgSpeed", "distance", "duration", "avgHeartRate"))
+
+# Test
+plot(RunAll, session = 1:3, what = c("pace", "heart_rate", "speed"))
+plot(RunAll, session = 5, what = c("speed"))
+```
+
+# Kmeans on run1 dataset 
+
+```{r, include=TRUE}
+run1.clean <- run1[, -c(1, 9, 10, 11)]
+run1.norm <- sapply(run1.clean, scale)
+row.names(run1.norm) <- row.names(run1.clean) 
+
+km <- kmeans(run1.norm, 3)
+km$cluster
+km$size
+
+plot(Run1, what = c("heart_rate", "speed"))
+
+summary(run1.clean[km$cluster == 1, "speed"])
+summary(run1.clean[km$cluster == 2, "speed"])
+summary(run1.clean[km$cluster == 3, "speed"])
+```
+
+# test fonctions trackeR 2
+
+```{r, include=TRUE}
+# Data import
+data("run", package = "trackeR")
+data("runs", package = "trackeR")
+
+# Static map
+plot(runs, session = 1:3)
+tryCatch(plotRoute(runs, session = 4, zoom = 13, maptype = "terrain"), error = function(x) "Failed to donwload map data")
+
+# Interactive map
+# tryCatch(leaflet_route(runs, session = c(1, 6, 12)), error = function(x) "Failed to download map data")
+
+
+
+# Summary
+summary(runs, session = 1:2)
+runSummary <- summary(runs, session = 1)
+print(runSummary, digits = 3)
+
+runSummaryFull <- summary(runs)
+plot(runSummaryFull, group = c("total", "moving"), what = c("avgSpeed", "distance", "duration", "avgHeartRate"))
+
+# Times in zones
+runZones <- zones(runs[1:4], what = "speed", breaks = list(speed = c(0, 2:6, 12.5)))
+plot(runZones)
+```
+
+## Quantifying work capacity
+```{r, include=TRUE}
+wexp <- Wprime(runs, session = 11, quantity = "expended", cp = 4, version = "2012")
+plot(wexp, scaled = TRUE)
+```
+
+## Distribution and concentration profiles
+```{r, include=TRUE}
+dProfile <- distributionProfile(runs, session = 1:4, what = c("speed", "heart_rate"), grid = list(speed = seq(0, 12.5, by = 0.05), heart_rate = seq(0, 250)))
+plot(dProfile, multiple = TRUE)
+
+cProfile <- concentrationProfile(dProfile, what = "speed")
+plot(cProfile, multiple = TRUE)
+
+```
+
+# Handling units of measurement
+```{r, include=TRUE}
+getUnits(run)
+runTr2 <- changeUnits(run, variable = "speed", unit = "mi_per_h", sport = "running")
+getUnits(runTr2)
+
+m_per_s2ft_per_h <- function(x) {
+  x * 3927/1200 * 3600
+}
+changeUnits(runSummary, variable = "speed", unit = "ft_per_h")
+
+```
+
+# Threshold
+```{r, include=TRUE}
+plot(runs, session = 4, what = "speed", threshold = FALSE)
+plot(runs, session = 4, what = "speed")
+plot(runs, session = 4, what = "speed", smooth = TRUE, fun = "median", width = 20)
+run4 <- threshold(runs[4])
+run4S <- smoother(run4, what = "speed", fun = "median", width = 20)
+plot(run4S, what = "speed", smooth = FALSE)
+```
+
+
+
+
+
+02/07/19
+# Analyse des données
+
+## Import données
+```{r, include=TRUE}
+rm(list=ls())
+RunAll <- read_directory('../Data/DataTCX/anonyme1', timezone = "GMT", sport = "running")
+nbSessions <- nsessions(RunAll)
+print(nbSessions)
+
+plot(RunAll, session = 1:5, what = c("speed"))
+
+df.runs <- data.frame(RunAll)
+p <- dim(RunAll)[2]
+```
+
+## test données 1
+```{r, include=TRUE}
+run1 <- df.runs[df.runs$session == 1, ]
+n <- dim(run1)[1]
+
+plot(run1$time, run1$heart_rate, main = "heart_rate against time", type = "l")
+plot(run1$time, run1$speed, main = "speed against time", type = "l")
+plot(run1$speed, run1$heart_rate, main = "heart_rate against speed", type = "l")
+```
+
+```{r, include=TRUE}
+run1.clean <- run1[, -c(1, 2, 3, 4, 6, 9, 10, 11, 12)]
+run1.clean <- na.omit(run1.clean)
+run1.norm <- sapply(run1.clean, scale)
+row.names(run1.norm) <- row.names(run1.clean) 
+
+km <- kmeans(run1.norm, 6)
+km$cluster
+km$size
+
+summary(run1.clean[km$cluster == 1, "speed"])
+summary(run1.clean[km$cluster == 2, "speed"])
+summary(run1.clean[km$cluster == 3, "speed"])
+
+plot(run1$heart_rate, run1$speed, main = "speed against time", type = "p", pch = 20, col = km$cluster)
+
+# Recherche du meilleur k
+WSS_f <- function(data, k) {
+  r <- kmeans(data, k)
+  WSS <- sum(r$withinss)
+}
+WSS_k <- sapply(1:20, WSS_f, data=run1.norm)
+
+plot(1:20, WSS_k, col = 1, xlab = "number of clusters")
+abline(v = 5)
+```
+
+
+
+
+03/07/19
+
+## Preprocessing
+```{r, include=TRUE}
+# Input : data from a running session
+# Output : data with NA column removed and cleaned
+preProcessDataForSection <- function(session) {
+  df <- session[, -c(1, 2, 3, 4, 5)]
+  p <- dim(df)[2]
+  
+  na.colums <- c()
+  for (k in 1:p) {
+    if (sum(!is.na(df[, k])) == 0) {
+      na.colums <- c(na.colums, k)
+    }
+  }
+  df <- df[, -na.colums]
+  df <- na.omit(df)
+  return(df)
+}
+```
+
+## Découpage tous les kms
+```{r, include=TRUE}
+# Input : une session
+# Output : une liste de troncons tous les kms avec les moyennes de chaque variable
+sliceSession <- function(data){
+  n <- dim(data)[1]
+  p <- dim(data)[2]
+  dist <- data$distance
+  k_max <- ceiling(dist[n]/1000)
+  
+  res <- matrix(nrow = k_max, ncol = p) 
+  colnames(res) <- colnames(data)
+  
+  res[1, ] <- apply(data[1:length(dist[dist<1000]),], 2, mean)
+  
+  for(k in 1:k_max-1){
+    a <- length(dist[dist<k*1000])
+    b <- length(dist[dist<(k+1)*1000])
+    res[k+1, ] <- apply(data[a:b,], 2, mean)
+  }
+  return(as.data.frame(res)) 
+}
+```
+
+## kmeans sur les tronçons (test pour développer l'algo général)
+```{r, include=TRUE}
+run <- df.runs[df.runs$session == 50, ]
+runCleaned <- preProcessDataForSection(run)
+
+troncons <- sliceSession(runCleaned)
+n <- dim(troncons)[1]
+p <- dim(troncons)[2]
+
+troncons.norm <- sapply(troncons, scale)
+row.names(troncons.norm) <- row.names(troncons) 
+troncons.norm <- troncons.norm[,-1]
+  
+# Recherche du meilleur k
+WSS_f <- function(data, k) {
+  r <- kmeans(data, k)
+  WSS <- sum(r$withinss)
+  return(WSS)
+}
+
+bestK <- function(df, kMax) {
+  df <- troncons.norm
+  kMax <- n-1
+  WSS_k <- sapply(1:kMax, WSS_f, data = df)
+
+  for (i in 1:(length(WSS_k)-1)) {
+    if (WSS_k[i] - WSS_k[i+1] < 3) {
+      plot(1:kMax, WSS_k, col = 1, xlab = "number of clusters")
+      abline(v = i)
+      return(i)
+    }
+  }
+  return(0)
+}
+kBest <- bestK(troncons.norm, n)
+
+km <- kmeans(troncons.norm, kBest)
+km$cluster
+km$size
+
+# summary(troncons[km$cluster == 1, "speed"])
+# summary(troncons[km$cluster == 2, "speed"])
+
+indexTroncons <- 1:n
+plot(indexTroncons, troncons$speed, main = "speed each section", type = "p", pch = 20, col = km$cluster)
+```
+
+
+04/07/19
+## Kmeans sur un ensemble de session de course ?
+```{r, include=TRUE}
+source("Functions/k-means.R")
+source("Functions/troncons.R")
+
+k.avg <- 0
+nbSessions <- nsessions(RunAll)
+print(paste("nb of running sessions =", nbSessions))
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+for (i in 1:nbSessions) {
+  # print(i)
+  run <- df.runs[df.runs$session == i, ]
+  runCleaned <- preProcessDataForSection(run)
+  troncons <- sliceSession(runCleaned)
+  
+  # Remove "distance" variable
+  troncons <- troncons[, -1]
+  
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  # A changer
+  if (n == 2) {
+    nbSessionsClean <- nbSessionsClean - 1
+    next
+  }
+
+  kBest <- bestK(troncons.norm, n-1)
+  if (kBest == 0) { 
+    nbSessionsClean <- nbSessionsClean - 1
+    kBest <- 1
+  }
+  k.avg <- k.avg + kBest 
+  km <- kmeans(troncons.norm, kBest)
+  
+  indexTroncons <- 1:n
+  plot(indexTroncons, troncons$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+}
+
+print(paste("nb of running sessions =", nbSessionsClean))
+k.avg <- k.avg/nbSessionsClean
+print(paste("k moyen =", round(k.avg, 2)))
+```
+
+
+15/07/19
+# Trouver le meilleur k dans kmeans (BIHE)
+```{r, include=TRUE}
+run <- df.runs[df.runs$session == 7, ]
+runCleaned <- preProcessDataForSection(run)
+troncons <- sliceSession(runCleaned)
+troncons <- troncons[,-1]
+print(troncons)
+n <- dim(troncons)[1]
+p <- dim(troncons)[2]
+
+troncons.norm <- sapply(troncons, scale)
+row.names(troncons.norm) <- row.names(troncons) 
+  
+# Recherche du meilleur k
+WSS_f <- function(data, k) {
+  r <- kmeans(data, k)
+  WSS <- sum(r$withinss)
+  return(WSS)
+}
+
+bestK <- function(df, kMax) {
+  WSS_k <- sapply(1:kMax, WSS_f, data = df)
+  Ks <- 1:kMax
+
+  plot(Ks, WSS_k, col = 1, xlab = "number of clusters")
+  
+  a <- (WSS_k[kMax]-WSS_k[1])/(kMax-1)
+  b <- -1
+  c <- WSS_k[1]
+  res <- vector(length = kMax-2)
+  max <- 0
+  for (k in 2:kMax-1) {
+    distance <- abs(a*(k-1) + b*WSS_k[k] + c) / sqrt(a^2 + b^2)
+    res[k-1] <- distance
+  }
+  # print(res)
+  for (k in 2:kMax-1) {
+    distance <- abs(a*(k-1) + b*WSS_k[k] + c) / sqrt(a^2 + b^2)
+    if(distance<max)
+      {
+      return(k-1)
+      }
+    else
+      {
+      max <- distance
+      }
+  }
+  return(0)
+}
+
+
+kBest <- bestK(troncons.norm, n-1)
+print(kBest)
+abline(v = kBest)
+```
+
+
+
+05/08/19
+# Import données
+```{r, include=TRUE}
+rm(list=ls())
+source("Functions/k-means.R")
+source("Functions/troncons.R")
+
+RunAll <- read_directory('../Data/DataTCX/anonyme1/', timezone = "GMT", sport = "running")
+nbSessions <- nsessions(RunAll)
+print(nbSessions)
+
+plot(RunAll, session = 1:5, what = c("speed"))
+
+df.runs <- data.frame(RunAll)
+p <- dim(df.runs)[2]
+```
+
+# Selection d'une course et découpage
+```{r, include=TRUE}
+i <- 7
+run <- df.runs[df.runs$session == i, ]
+runCleaned <- preProcessDataForSection(run)
+troncons <- sliceSession(runCleaned)
+troncons <- troncons[,-1]
+print(troncons)
+n <- dim(troncons)[1]
+p <- dim(troncons)[2]
+
+indexTroncons <- 1:n
+plot(indexTroncons, troncons$speed, main = paste("speed each section for session"), type = "p", pch = 20)
+```
+
+# Cluster Analysis - Basic models
+```{r, include=TRUE}
+indexTroncons <- 1:n
+tronconsScaled <- scale(troncons) 
+
+# kmeans
+kBest <- bestK(tronconsScaled, n-1)
+km <- kmeans(tronconsScaled, kBest)
+
+plot(indexTroncons, troncons$speed, main = paste("speed each section - KMEANS"), type = "p", pch = 20, col = km$cluster)
+
+
+# Ward Hierarchical Clustering
+d <- dist(tronconsScaled, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward") 
+plot(fit) # display dendogram
+groups <- cutree(fit, k=3) # cut tree into 5 clusters
+# draw dendogram with red borders around the 5 clusters 
+rect.hclust(fit, k=3, border="red")
+
+plot(indexTroncons, troncons$speed, main = paste("speed each section - HCLUST"), type = "p", pch = 20, col = groups)
+```
+
+# Find the optimal number of clusters
+
++ Elbow method : It looks at the total WSS as a function of the number of clusters: One should choose a number of clusters so that adding another cluster doesn’t improve much better the total WSS
+
++ Average silhouette method : It determines how well each object lies within its cluster. A high average silhouette width indicates a good clustering. The optimal number of clusters k is the one that maximize the average silhouette over a range of possible values for k (Kaufman and Rousseeuw 1990).
+
++ Gap statistic method : The gap statistic compares the total within intra-cluster variation for different values of k with their expected values under null reference distribution of the data. The estimate of the optimal clusters will be value that maximize the gap statistic (i.e, that yields the largest gap statistic)
+
+
+The disadvantage of elbow and average silhouette methods is that, they measure a global clustering characteristic only. A more sophisticated method is to use the gap statistic which provides a statistical procedure to formalize the elbow/silhouette heuristic in order to estimate the optimal number of clusters.
+
+```{r, include=TRUE}
+# Elbow method
+fviz_nbclust(tronconsScaled, kmeans, method = "wss", k.max = n-1) +
+    geom_vline(xintercept = 3, linetype = 2)+
+  labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(tronconsScaled, kmeans, method = "silhouette", k.max = n-1)+
+  labs(subtitle = "Silhouette method")
+
+# Gap statistic
+# nboot = 50 to keep the function speedy. 
+# recommended value: nboot= 500 for your analysis.
+# Use verbose = FALSE to hide computing progression.
+set.seed(123)
+fviz_nbclust(tronconsScaled, kmeans, nstart = 25,  method = "gap_stat", nboot = 500, k.max = n-1, verbose = TRUE) + labs(subtitle = "Gap statistic method")
+
+
+
+
+set.seed(123)
+km.res <- kmeans(tronconsScaled, 3, nstart = 25)
+# Visualize
+library("factoextra")
+fviz_cluster(km.res, data = tronconsScaled,
+             ellipse.type = "convex",
+             palette = "jco",
+             ggtheme = theme_minimal())
+
+
+# Error
+library(NbClust)
+NbClust(tronconsScaled, distance = "euclidean", min.nc = 2, max.nc = 7, method = "complete")
+```
+
+# 
+```{r, include=TRUE}
+
+```
+
+

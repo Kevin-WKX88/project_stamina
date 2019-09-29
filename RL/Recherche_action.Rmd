@@ -1,0 +1,59 @@
+---
+title: "Reinforcement Learning in R"
+author: "Eric Wang"
+date: "30 Juillet 2019"
+output:
+  pdf_document: default
+  html_document: default
+  always_allow_html: yes
+---
+
+
+# Histo pace
+
+```{r}
+source("../../web_scraping/getAllClean.R")
+#path <- "../../Data/DataCSV/Urutty"
+path <- "../../web_scraping/data/"
+fp <- list.files(paste0(path),full.names = TRUE)
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+for(run in fp){
+  
+  li <- getRuns(run)
+  
+  pace <- c()
+  d <- 10
+  eps <- 0.5
+  for(i in 1:length(li)){
+    if(is.numeric(li[[i]]$pace) && 
+       li[[i]]$distance[length(li[[i]]$distance)] >= d-eps && 
+       li[[i]]$distance[length(li[[i]]$distance)] <= d+eps){
+      pace <- rbind(pace,li[[i]]$pace)
+    }
+  }
+
+  length(as.vector(pace))
+  hist(pace,breaks=100,col=1,xlim=c(100,500))
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

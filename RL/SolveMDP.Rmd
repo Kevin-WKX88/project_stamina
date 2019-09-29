@@ -1,0 +1,102 @@
+---
+title: "MDP"
+author: "Eric Wang"
+date: "26 juillet 2019"
+output: pdf_document
+---
+
+```{r}
+#http://researchers.lille.inria.fr/~munos/papers/files/bouquinPDMIA.pdf
+# "Algorithme 1.1" page 39
+# pas tenu comptes des indices N-1-n --> je considère que les reward et probas changent pas au cours du temps
+
+# return la valeur max et le argmax de cette valeur, selon l'algo
+maxV_Pi <- function(s,A,P,R,V,n){
+  valeurmax <- -1000
+  argmax <- 0
+
+  for(a in A){
+    
+    somme <- R[s,a] + as.numeric(P[,s,a]%*%V[n,])
+
+    if(somme > valeurmax){
+      valeurmax=somme
+      argmax <- a
+    }
+  }
+  
+  liste <- list(valeurmax,argmax)
+  return(liste)
+}
+
+
+# return V ET PI
+
+## Paramètres
+# N (entier)   : distance en km
+# S (array 1D) : States
+# A (array 1D) : Actions
+# P (array 3D) : Probabilités s à s' avec l'action a
+# R (array 2D) : Rewards pour passer le state s avec l'action a
+horizonfini <- function(N,S,A,P,R){
+  V  <- matrix(0,N,length(S))
+  pi <- matrix(0,N,length(S))
+  
+  for(n in 1:(N-1)){
+    for(s in S){
+
+      list <- maxV_Pi(s,A,P,R,V,n)
+      
+      V[n+1,s] <- as.numeric(list[1]) #max
+      pi[N-n,s] <- as.numeric(list[2]) #argmax
+    }
+  }
+  #VPI <- list(V,pi)
+  return(pi)
+}
+
+
+
+```
+
+```{r}
+mat <- array(data = 0,dim=c(3,3,3))
+
+mat[1,2,1] <- 1
+mat
+mat[,,1]
+
+```
+
+
+```{r}
+N <- 11 
+S <- c(1,2,3)
+A <- S
+
+R <- array(0,dim<-c(3,3))
+R[1,] <- c(-0.5   , -2   , -3)
+R[2,] <- c(-1   , -1.5 , -2)
+R[3,] <- c(-0.5 , -1.5 , -2)
+
+P <- array(0,dim = c(3,3,3))
+
+P[1,,1] <- c(0.8  , 0.2  , 0  )
+P[2,,1] <- c(0.75 , 0.25 , 0  )
+P[3,,1] <- c(0.6  , 0.3  , 0.1)
+
+P[1,,2] <- c(0.3 , 0.6 , 1  )
+P[2,,2] <- c(0.1 , 0.8 , 0.1)
+P[3,,2] <- c(0.2 , 0.6 , 0.2)
+
+P[1,,3] <- c(0.1 , 0.3  , 0.6 )
+P[2,,3] <- c(0   , 0.25 , 0.75)
+P[3,,3] <- c(0   , 0.2  , 0.8 )
+```
+
+```{r}
+policy <- horizonfini(N,S,A,P,R)
+policy
+```
+
+Voir IRMDP

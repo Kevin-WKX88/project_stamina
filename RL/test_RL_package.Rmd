@@ -1,0 +1,188 @@
+---
+title: "Reinforcement Learning in R"
+author: "dd"
+date: "30 Juillet 2019"
+output:
+  pdf_document: default
+  html_document: default
+  always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(trackeR)
+
+library(ReinforcementLearning)
+```
+
+# Introduction
+
+Main features of ReinforcementLearning include, but are not limited to :
+
++ Learning an optimal policy from a fixed set of a priori known transition samples
++ Predefined learning rules and action selection modes
++ A highly customizable framework for model-free reinforcement learning tasks
+
+# Data preparation
+
+The ReinforcementLearning package utilizes different mechanisms for reinforcement learning, including Q-learning and experience replay
+
+```{r, include=TRUE}
+data("tictactoe")
+head(tictactoe)
+```
+
+# Learning phase
+```{r, include=TRUE}
+tictactoe <- tictactoe[1:100, ]
+model <- ReinforcementLearning(data = tictactoe,
+                               s = "State",
+                               a = "Action",
+                               r = "Reward",
+                               s_new = "NextState",
+                               iter = 1, control = control)
+
+# Define control object
+control <- list(alpha = 0.1, gamma = 0.1, epsilon = 0.1)
+
+# Pass learning parameters to reinforcement learning function
+# model <- ReinforcementLearning(data, iter = 10, control = control)
+
+# Print policy
+computePolicy(model)
+
+# Print state-action table
+print(model)
+
+# Print summary statistics
+summary(model)
+```
+
+# Example : Gridworld
+
+```{r, include=TRUE}
+# Define state and action sets
+states <- c("s1", "s2", "s3", "s4")
+actions <- c("up", "down", "left", "right")
+
+# Load built-in environment function for 2x2 gridworld 
+env <- gridworldEnvironment
+print(env)
+
+data <- sampleExperience(N = 1000, 
+                         env = env, 
+                         states = states, 
+                         actions = actions)
+head(data)
+
+# Define reinforcement learning parameters
+control <- list(alpha = 0.1, gamma = 0.5, epsilon = 0.1)
+
+# Perform reinforcement learning
+model <- ReinforcementLearning(data, 
+                               s = "State", 
+                               a = "Action", 
+                               r = "Reward", 
+                               s_new = "NextState", 
+                               control = control)
+# Print policy
+computePolicy(model)
+# Print state-action function
+print(model)
+# Print summary statistics
+summary(model)
+```
+
+```{r, include=TRUE}
+# Example data
+data_unseen <- data.frame(State = c("s1", "s2", "s1"), 
+                          stringsAsFactors = FALSE)
+
+# Pick optimal action
+data_unseen$OptimalAction <- predict(model, data_unseen$State)
+
+data_unseen
+
+# Sample N = 1000 sequences from the environment
+# using epsilon-greedy action selection
+data_new <- sampleExperience(N = 1000, 
+                             env = env, 
+                             states = states, 
+                             actions = actions, 
+                             actionSelection = "epsilon-greedy",
+                             model = model, 
+                             control = control)
+
+# Update the existing policy using new training data
+model_new <- ReinforcementLearning(data_new, 
+                                   s = "State", 
+                                   a = "Action", 
+                                   r = "Reward", 
+                                   s_new = "NextState", 
+                                   control = control,
+                                   model = model)
+# Print result
+print(model_new)
+# Plot reinforcement learning curve
+plot(model_new)
+```
+
+# Example : Tic-Tac-Toe
+
+```{r, include=TRUE}
+# Load dataset
+data("tictactoe")
+
+# Define reinforcement learning parameters
+control <- list(alpha = 0.2, gamma = 0.4, epsilon = 0.1)
+
+# Perform reinforcement learning
+model <- ReinforcementLearning(tictactoe, s = "State", a = "Action", r = "Reward", 
+                               s_new = "NextState", iter = 1, control = control)
+
+# Calculate optimal policy
+pol <- computePolicy(model)
+
+# Print policy
+head(pol)
+
+```
+
+# Histo pace 
+
+```{r, include=TRUE}
+source("../../web_scraping/getAllClean.R")
+path <- "../../Data/DataCSV/Urutty"
+fp <- list.files(path,full.names = T)
+li <- getRuns(path)
+```
+
+```{r}
+pace <- c()
+for(i in 1:length(li)){
+  if(is.numeric(li[[i]]$pace)){
+    pace <- rbind(pace,li[[i]]$pace)
+  }
+}
+
+
+length(as.vector(pace))
+hist(pace,breaks=1000)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

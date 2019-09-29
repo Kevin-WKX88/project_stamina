@@ -1,0 +1,386 @@
+---
+title: "Tranformer les sessions de courses en data pour RL + Test avec package RL"
+author: "Kevin XU"
+date: "14 août 19"
+output:
+  pdf_document: default
+  html_document: default
+  always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(trackeR)
+
+source("../Functions/k-means.R")
+source("../Functions/troncons.R")
+```
+
+# Importation data CSV
+```{r, include=TRUE}
+fp <- list.files("../../Data/DataCSV/Urutty", full.names = TRUE)
+
+sessions <- list()
+for(k in 1:length(fp)){
+  if(substr(fp[k],nchar(fp[k])-2, nchar(fp[k])) == "csv"){
+    dftemp <- read.csv(fp[k])
+    sessions[[k]] <- dftemp # Attention si on a pas des fichiers CSV
+  }
+}
+
+print(sessions[[2]])
+
+nbSessions <- length(sessions)
+print(paste("nb of running sessions =", nbSessions))
+```
+
+# Traitement des données avec kmeans par session (une course pour commencer)
+```{r, include=TRUE}
+i <- 1
+run <- sessions[[i]]
+runCleaned <- preProcessDataForSectionCSV(run)
+troncons <- sliceSession(runCleaned)
+  
+# Remove "distance" variable
+# troncons <- troncons[, -1]
+n <- dim(troncons)[1]
+p <- dim(troncons)[2]
+
+troncons.norm <- sapply(troncons, scale)
+row.names(troncons.norm) <- row.names(troncons) 
+
+km <- kmeans(troncons.norm, 3)
+  
+indexTroncons <- 1:n
+plot(indexTroncons, troncons$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+
+plot(indexTroncons, troncons$heart_rate, main = paste("heart-rate each section for session", i), type = "p", pch = 20, col = km$cluster)
+
+plot(indexTroncons, troncons$cadence_running, main = paste("cadence running each section for session", i), type = "p", pch = 20, col = km$cluster)
+
+plot(indexTroncons, troncons$elevation, main = paste("elevation each section for session", i), type = "p", pch = 20, col = km$cluster)
+```
+
+# Les probabilités de transitions ()
+```{r, include=TRUE}
+cluster <- km$cluster
+cluster
+
+set.seed(123)
+P <- matrix(0, 3, 3)
+for (i in 1:nbSessions) {
+  # i <- 1
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  # Remove "distance" variable
+  troncons <- troncons[, -1]
+  n <- dim(troncons)[1]
+  p <- dim(troncons)[2]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons)
+  
+  km <- kmeans(troncons.norm, 3)
+  cluster <- km$cluster
+
+  indexTroncons <- 1:n
+  # plot(indexTroncons, troncons$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster)
+
+  for(j in 1:(n-1)) {
+    P[cluster[j], cluster[j+1]] <- P[cluster[j], cluster[j+1]] + 1
+  }
+
+}
+
+for (i in 1:3) {
+  P[i,] <- P[i,]/sum(P[i,])
+}
+P
+```
+
+
+20/08/19
+```{r, include=TRUE}
+k <- 3
+nbSessionsClean <- nbSessions
+
+set.seed(1)
+
+allSessions <- data.frame()
+for (i in 1:nbSessions) {
+  run <- sessions[[i]]
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  
+  troncons <- troncons[, -1]
+  
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  allSessions <- rbind(allSessions, cbind(session = rep(i, dim(troncons)[1]), troncons.norm))
+}
+
+print(allSessions)
+  
+km <- kmeans(allSessions[,-1], k)
+print(km$centers)
+
+for (i in 1:nbSessions) {
+  plot(allSessions[allSessions$session == i, ]$speed, main = paste("speed each section for session", i), type = "p", pch = 20, col = km$cluster[allSessions$session == i], xlab = "troncon", ylab = "speed")
+}
+
+clusters <- list()
+for (i in 1:nbSessions) {
+  clusters[[i]] <- km$cluster[allSessions$session == i]
+}
+
+```
+
+# Les probabilités de transitions ()
+```{r, include=TRUE}
+P <- matrix(0, 3, 3)
+for (i in 1:nbSessions) {
+  cluster <- clusters[[i]]
+  n <- length(cluster)
+
+  for(j in 1:(n-1)) {
+    P[cluster[j], cluster[j+1]] <- P[cluster[j], cluster[j+1]] + 1
+  }
+}
+
+for (i in 1:3) {
+  P[i,] <- P[i,]/sum(P[i,])
+}
+P
+```
+
+
+
+
+22/08/19
+# Les courses de 10 km
+
+## kmeans sur les courses de 10km
+```{r, include=TRUE}
+k <- 3
+
+allSessions <- data.frame()
+allSessionsScaled <- data.frame()
+
+for (i in 1:nbSessions) {
+  run <- sessions[[i]]
+
+  runCleaned <- preProcessDataForSectionCSV(run)
+  troncons <- sliceSession(runCleaned)
+  troncons.norm <- sapply(troncons, scale)
+  row.names(troncons.norm) <- row.names(troncons) 
+  
+  allSessions <- rbind(allSessions, cbind(session = rep(i, dim(troncons)[1]), troncons))
+  allSessionsScaled <- rbind(allSessionsScaled, cbind(session = rep(i, dim(troncons)[1]), troncons.norm))
+}
+
+sizesSessions <- vector(mode = "numeric", length = nbSessions)
+for (i in 1:nbSessions) {
+  sizesSessions[i] <- nrow(allSessions[allSessions$session == i, ])
+}
+hist(sizesSessions, breaks = 28, col = 6)
+print(sizesSessions)
+
+# Les courses de 10 km
+indices10km <- which(sizesSessions == 10)
+print(indices10km)
+nbSessions10km <- length(indices10km)
+
+all10kmSessionsScaled <- data.frame()
+for (i in 1:nbSessions10km) {
+  all10kmSessionsScaled <- rbind(all10kmSessionsScaled, allSessionsScaled[allSessionsScaled$session == indices10km[i], ])
+}
+
+print(all10kmSessionsScaled)
+  
+km <- kmeans(all10kmSessionsScaled[,-1], k)
+print(km$centers)
+
+for (i in 1:nbSessions10km) {
+  plot(all10kmSessionsScaled[all10kmSessionsScaled$session == indices10km[i], ]$speed, main = paste("speed each section for session", indices10km[i]), type = "p", pch = 20, col = km$cluster[all10kmSessionsScaled$session == indices10km[i]], xlab = "troncon", ylab = "speed")
+}
+
+clusters10kmSessions_allSession <- list()
+for (i in 1:nbSessions10km) {
+  clusters10kmSessions_allSession[[indices10km[i]]] <- km$cluster[all10kmSessionsScaled$session == indices10km[i]]
+}
+```
+
+
+## Les actions : 3-5 vitesses ?
+```{r, include=TRUE}
+# Récupération des vitesses pour les séances de 10 km
+speeds10km <- c()
+for (i in 1:nbSessions10km) {
+  run <- sessions[[indices10km[i]]]
+  speeds10km <- c(speeds10km, run$pace)
+
+}
+hist(speeds10km, breaks = 100, col = 8)
+```
+
+
+## transformation du résultats kmeans en : State + Action + NextState + Reward 
++ Un seul état physiologique par State
+```{r, include=TRUE}
+# Pour l'instant
+actions <- c(150, 200, 225, 250, 275, 300)
+
+states1 <- data.frame(t(vector(mode = "numeric", length = 4)))
+names(states1) <- c("State", "Action", "NextState", "Reward")
+states1 <- states1[-1,]
+
+for (i in 1:nbSessions10km) {
+  cluster <- clusters10kmSessions_allSession[[indices10km[i]]]
+  
+  run <- allSessions[allSessions$session == indices10km[i], ]
+  
+  for (j in 1:(10-1)) {
+    v <- run$speed[j]
+    
+    action <- actions[which.min(abs(actions - v))]
+    temps <- -action
+    
+    states1 <- rbind(states1, cbind(State = cluster[j], Action = action, NextState = cluster[j+1], Reward = temps))
+  }
+}
+
+states1$State <- as.character(states1$State)
+states1$NextState <- as.character(states1$NextState)
+states1$Action <- as.character(states1$Action)
+```
+
+## Test sur package RL
++ $\alpha$ : Learning Rate
++ $\gamma$ : Discount factor/rate
+
+```{r, include=TRUE}
+library(ReinforcementLearning)
+# Define control object
+control <- list(alpha = 0.1, gamma = 0.1, epsilon = 0.1)
+
+# Perform reinforcement learning
+model <- ReinforcementLearning(states1, s = "State", a = "Action", r = "Reward", 
+                               s_new = "NextState", iter = 100, control = control)
+
+
+# Pass learning parameters to reinforcement learning function
+# model <- ReinforcementLearning(data, iter = 10, control = control)
+
+# Print policy
+computePolicy(model)
+
+# Print state-action table
+print(model)
+
+# Print summary statistics
+summary(model)
+```
+
+
+
+26/08/19
+## transformation du résultats kmeans en : State + Action + NextState + Reward 
++ Un state : Avec tous les états précédents
+```{r, include=TRUE}
+# Pour l'instant
+actions <- c(150, 200, 225, 250, 275, 300)
+
+states1 <- data.frame(t(vector(mode = "numeric", length = 4)))
+names(states1) <- c("State", "Action", "NextState", "Reward")
+states1 <- states1[-1,]
+
+for (i in 1:nbSessions10km) {
+  cluster <- clusters10kmSessions_allSession[[indices10km[i]]]
+  
+  run <- allSessions[allSessions$session == indices10km[i], ]
+  
+  for (j in 1:(10-1)) {
+    v <- run$speed[j]
+    
+    temps <- -v
+    action <- actions[which.min(abs(actions - v))]
+    
+    State <- ""
+    NextState <- ""
+    for (l in 1:10) {
+      if (l <= j) {
+        State <- paste(State, cluster[l], sep = "")
+        NextState <- paste(NextState, cluster[l], sep = "")
+      }
+      if (l == j+1) {
+        State <- paste(State,".", sep = "")
+        NextState <- paste(NextState, cluster[j], sep = "")
+      }
+      else if (l > j) {
+        State <- paste(State,".", sep = "")
+        NextState <- paste(NextState, ".", sep = "")
+      } 
+    }
+
+    states1 <- rbind(states1, cbind(State = State, Action = action, NextState = NextState, Reward = temps))
+  }
+}
+
+states1$State <- as.character(states1$State)
+states1$NextState <- as.character(states1$NextState)
+states1$Action <- as.character(states1$Action)
+states1$Reward <- as.numeric(as.character(states1$Reward))
+print(states1)
+```
+
+## Test sur package RL
++ $\alpha$ : Learning Rate
++ $\gamma$ : Discount factor
+
+```{r, include=TRUE}
+library(ReinforcementLearning)
+# Define control object
+control <- list(alpha = 0.1, gamma = 0.1, epsilon = 0.1)
+
+# Perform reinforcement learning
+model <- ReinforcementLearning(states1, s = "State", a = "Action", r = "Reward", 
+                               s_new = "NextState", iter = 100, control = control)
+
+
+# Pass learning parameters to reinforcement learning function
+# model <- ReinforcementLearning(data, iter = 10, control = control)
+
+# Print policy
+computePolicy(model)
+
+# Print state-action table
+print(model)
+
+# Print summary statistics
+summary(model)
+```
+
+### Predict
+```{r, include=TRUE}
+data_unseen <- data.frame(State = c("X1.........",
+                                    "X11........",
+                                    "X111.......",
+                                    "X1111......",
+                                    "X11111.....",
+                                    "X11112....."
+                                    ), stringsAsFactors = FALSE)
+
+# Pick optimal action
+data_unseen$OptimalAction <- predict(model, data_unseen$State)
+
+data_unseen
+```
+
+
+
+
+
+
