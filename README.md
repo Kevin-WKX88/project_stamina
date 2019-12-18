@@ -1,8 +1,8 @@
 # Stamina project
 + Startup STAMINA : A group of four young engineering student who want to provide a revolutionary coaching app for runners by applying Machine Learning techniques on data collected from smart watches. Here are some fields that we dealt with
- - Web-scraping
- - Reinforcement learning
- - Clustering
+    - Web-scraping
+    - Reinforcement learning
+    - Clustering
 + 2-month project between July and August 2019 
 
 # The Team
