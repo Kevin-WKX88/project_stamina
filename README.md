@@ -1,4 +1,4 @@
-# Stamina project
+# Stamina - part of a pre-incubation program
 + Startup STAMINA : A group of four young engineering student who want to provide a revolutionary coaching app for runners by applying Machine Learning techniques on data collected from smart watches. Here are some fields that we dealt with
     - Web-scraping
     - Reinforcement learning
