@@ -1,4 +1,4 @@
-# Entrepreneurial Project ; STAMINA
+# Entrepreneurial Project : STAMINA
 > 3-month project between July and September 2019 
 
 As part of the Sun Heat IMT Starter Summer Pre-Incubation Program, our team of 4 engineering students worked on **Stamina** - a revolutionary coaching app for runners. The solution consisted in extracting data collected from smartwatches and applying machine learning algorithms.
